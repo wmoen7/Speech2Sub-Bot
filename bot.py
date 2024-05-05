@@ -1,7 +1,7 @@
 import os, re, time
 import shutil
 import speech_recognition as sr
-from pyrogram import Client, filters, edited
+from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from tqdm import tqdm
 from segmentAudio import silenceRemoval
