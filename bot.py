@@ -1,4 +1,4 @@
-from pyrogram import Client, filters
+from pyrogram import Client, filters, edited
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from tqdm import tqdm
 from segmentAudio import silenceRemoval
