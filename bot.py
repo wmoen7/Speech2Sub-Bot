@@ -1,4 +1,6 @@
-import os, re, time
+import os
+import re
+import time
 import shutil
 import speech_recognition as sr
 from pyrogram import Client, filters
@@ -15,11 +17,11 @@ API_ID = os.environ.get("API_ID")
 API_HASH = os.environ.get("API_HASH")
 lang = os.environ.get("LANG_CODE")
 
-Bot = Client(
+bot = Client(
     "Bot",
-    bot_token = BOT_TOKEN,
-    api_id = API_ID,
-    api_hash = API_HASH
+    bot_token=BOT_TOKEN,
+    api_id=API_ID,
+    api_hash=API_HASH
 )
 
 START_TXT = """
@@ -32,13 +34,13 @@ Send a video/audio/voice to get started.
 """
 
 START_BTN = InlineKeyboardMarkup(
-        [[
+    [[
         InlineKeyboardButton('Source Code', url='https://github.com/samadii/Speech2Sub-Bot'),
-        ]]
-    )
+    ]]
+)
 
 
-@Bot.on_message(filters.command(["start"]))
+@bot.on_message(filters.command(["start"]))
 async def start(bot, update):
     text = START_TXT.format(update.from_user.mention)
     reply_markup = START_BTN
@@ -49,45 +51,37 @@ async def start(bot, update):
     )
 
 
-# Line count for SRT file
-line_count = 0
-
 def sort_alphanumeric(data):
     """Sort function to sort os.listdir() alphanumerically
     Helps to process audio files sequentially after splitting 
     Args:
-        data : file name
+        data (list): file names
     """
-    
     convert = lambda text: int(text) if text.isdigit() else text.lower()
     alphanum_key = lambda key: [convert(c) for c in re.split('([0-9]+)', key)] 
-    
-    return sorted(data, key = alphanum_key)
+    return sorted(data, key=alphanum_key)
 
 
-def ds_process_audio(audio_file, file_handle):  
-    # Perform inference on audio segment
-    global line_count
+async def process_audio_segment(audio_file: str, file_handle: str, line_count: int) -> int:
     try:
         with sr.AudioFile(audio_file) as source:
             audio_data = rec.record(source)
-            text = rec.recognize_google(audio_data,language=lang)
+            text = rec.recognize_google(audio_data, language=lang)
             infered_text = text
-    except:
+    except sr.UnknownValueError:
         infered_text = ""
         pass
     
-    # File name contains start and end times in seconds. Extract that
     limits = audio_file.split("/")[-1][:-4].split("_")[-1].split("-")
     
-    if len(infered_text) != 0:
+    if len(infered_text)!= 0:
         line_count += 1
         write_to_file(file_handle, infered_text, line_count, limits)
+    return line_count
 
 
-@Bot.on_message(filters.private & (filters.video | filters.document | filters.audio | filters.voice) & ~filters.edited, group=-1)
+@bot.on_message(filters.private & (filters.video | filters.document | filters.audio | filters.voice) & ~filters.edited, group=-1)
 async def speech2srt(bot, m):
-    global line_count
     if m.document and not m.document.mime_type.startswith("video/"):
         return
     media = m.audio or m.video or m.document or m.voice
@@ -104,14 +98,14 @@ async def speech2srt(bot, m):
     print("Splitting on silent parts in audio file")
     silenceRemoval(audio_file_name)
     
-    # Output SRT file
     srt_file_name = os.path.basename(file_dl_path).rsplit(".", 1)[0] + '.srt'
     file_handle = open(srt_file_name, "w")
+    line_count = 0
     
     for file in tqdm(sort_alphanumeric(os.listdir(audio_directory))):
         audio_segment_path = os.path.join(audio_directory, file)
         if audio_segment_path.split("/")[-1] != audio_file_name.split("/")[-1]:
-            ds_process_audio(audio_segment_path, file_handle)
+            line_count = await process_audio_segment(audio_segment_path, file_handle, line_count)
             
     print("\nSRT file saved to", srt_file_name)
     file_handle.close()
